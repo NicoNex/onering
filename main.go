@@ -86,8 +86,8 @@ func loadConfig(path string) (cfg config, err error) {
 
 func getConfig(path string) (cfg config) {
 	flag.StringVar(&path, "cfg", path, "Path to the configuration file")
-	flag.StringVar(&cfg.Port, "port", ":80", "The port that morpheus will listen to")
-	flag.StringVar(&cfg.TLSPort, "tlsport", ":443", "The TLS port that morpheus will listen to")
+	flag.StringVar(&cfg.Port, "port", ":80", "The port that onering will listen to")
+	flag.StringVar(&cfg.TLSPort, "tlsport", ":443", "The TLS port that onering will listen to")
 	flag.StringVar(&cfg.Cert, "cert", "", "Path to the TLS certificate")
 	flag.StringVar(&cfg.Key, "key", "", "Path to the TLS key")
 	flag.Parse()
