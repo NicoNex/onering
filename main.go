@@ -23,8 +23,31 @@ type config struct {
 	Domains map[string]string `toml:"domains"`
 }
 
+type clicfg struct {
+	path string
+	config
+}
+
 func (c config) isZero() bool {
 	return c.Port == "" && c.TLSPort == "" && c.Cert == "" && c.Key == "" && len(c.Domains) == 0
+}
+
+func (c *config) override(n config) {
+	if n.Port != "" {
+		c.Port = n.Port
+	}
+	if n.TLSPort != "" {
+		c.TLSPort = n.TLSPort
+	}
+	if n.Cert != "" {
+		c.Cert = n.Cert
+	}
+	if n.Key != "" {
+		c.Cert = n.Cert
+	}
+	if n.Domains != nil {
+		c.Domains = n.Domains
+	}
 }
 
 var cfg config
@@ -79,18 +102,30 @@ loop:
 	}
 }
 
-func getConfig(path string) (c config) {
-	flag.StringVar(&path, "cfg", path, "Path to the configuration file")
-	flag.StringVar(&c.Port, "port", ":80", "The port that onering will listen to")
-	flag.StringVar(&c.TLSPort, "tlsport", ":443", "The TLS port that onering will listen to")
+func parseFlags() (c clicfg) {
+	flag.StringVar(&c.path, "cfg", "", "Path to the configuration file")
+	flag.StringVar(&c.Port, "port", "", "The port that onering will listen to")
+	flag.StringVar(&c.TLSPort, "tlsport", "", "The TLS port that onering will listen to")
 	flag.StringVar(&c.Cert, "cert", "", "Path to the TLS certificate")
 	flag.StringVar(&c.Key, "key", "", "Path to the TLS key")
 	flag.Parse()
+
+	return
+}
+
+func getConfig(path string) (c config) {
+	cli := parseFlags()
+
+	if cli.path != "" {
+		path = cli.path
+	}
 
 	_, err := toml.DecodeFile(path, &c)
 	if err != nil {
 		log.Println("getConfig", "toml.DecodeFile", err)
 	}
+
+	c.override(cli.config)
 	if c.isZero() {
 		log.Fatal("error: no configuration provided")
 	}
