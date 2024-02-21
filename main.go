@@ -9,20 +9,22 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/fsnotify/fsnotify"
 )
 
 type config struct {
-	Addr    string            `toml:"addr"`
+	Port    string            `toml:"port"`
+	TLSPort string            `toml:"tls_port"`
 	Cert    string            `toml:"cert"`
 	Key     string            `toml:"key"`
 	Domains map[string]string `toml:"domains"`
 }
 
 func (c config) isZero() bool {
-	return c.Addr == "" && c.Cert == "" && c.Key == "" && len(c.Domains) == 0
+	return c.Port == "" && c.TLSPort == "" && c.Cert == "" && c.Key == "" && len(c.Domains) == 0
 }
 
 var cfg config
@@ -60,17 +62,17 @@ loop:
 				continue loop
 			}
 			if event.Has(fsnotify.Write) {
-				cfg, err := loadConfig(path)
+				newcfg, err := loadConfig(path)
 				if err != nil {
 					log.Printf("error: failed to load config: %v", err)
-					continue loop
+					break
 				}
-				*cfgptr = cfg
+				*cfgptr = newcfg
 			}
 
 		case err, ok := <-watcher.Errors:
 			if !ok {
-				continue loop
+				break
 			}
 			log.Println(err)
 		}
@@ -82,21 +84,30 @@ func loadConfig(path string) (cfg config, err error) {
 	return
 }
 
-func getConfig(path string) config {
+func getConfig(path string) (cfg config) {
+	flag.StringVar(&path, "cfg", path, "Path to the configuration file")
+	flag.StringVar(&cfg.Port, "port", ":80", "The port that morpheus will listen to")
+	flag.StringVar(&cfg.TLSPort, "tlsport", ":443", "The TLS port that morpheus will listen to")
+	flag.StringVar(&cfg.Cert, "cert", "", "Path to the TLS certificate")
+	flag.StringVar(&cfg.Key, "key", "", "Path to the TLS key")
+	flag.Parse()
+
 	cfg, err := loadConfig(path)
 	if err != nil {
 		log.Println(err)
 	}
 
-	flag.StringVar(&cfg.Addr, "a", cfg.Addr, "The address that morpheus will listen to")
-	flag.StringVar(&cfg.Cert, "cert", cfg.Cert, "Path to the TLS certificate")
-	flag.StringVar(&cfg.Key, "key", cfg.Key, "Path to the TLS key")
-	flag.Parse()
-
 	if cfg.isZero() {
 		log.Fatal("error: no configuration provided")
 	}
 	return cfg
+}
+
+func retry(d time.Duration, fn func()) {
+	for {
+		fn()
+		time.Sleep(d)
+	}
 }
 
 func main() {
@@ -110,5 +121,11 @@ func main() {
 	go watch(cfgpath, &cfg)
 
 	http.HandleFunc("/", redirect)
-	log.Fatal(http.ListenAndServe(cfg.Addr, nil))
+
+	go retry(time.Second*5, func() {
+		log.Println(http.ListenAndServe(cfg.Port, nil))
+	})
+	retry(time.Second*5, func() {
+		log.Println(http.ListenAndServeTLS(cfg.TLSPort, cfg.Cert, cfg.Key, nil))
+	})
 }
