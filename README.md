@@ -1,9 +1,9 @@
-# morpheus
+# onering
 A reverse proxy with a focus on simplicity.
 
 ### Example configuration file
 ```toml
-# morpheus.toml
+# onering.toml
 
 port = ":80"
 tls_port = ":443"

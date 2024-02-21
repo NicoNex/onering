@@ -116,7 +116,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cfgpath := filepath.Join(ucfg, "morpheus.toml")
+	cfgpath := filepath.Join(ucfg, "onering.toml")
 	cfg = getConfig(cfgpath)
 	go watch(cfgpath, &cfg)
 

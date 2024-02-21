@@ -1,4 +1,4 @@
-module morpheus
+module onering
 
 go 1.22.0
 
