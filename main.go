@@ -23,11 +23,6 @@ type config struct {
 	Domains map[string]string `toml:"domains"`
 }
 
-type clicfg struct {
-	path string
-	config
-}
-
 func (c config) isZero() bool {
 	return c.Port == "" && c.TLSPort == "" && c.Cert == "" && c.Key == "" && len(c.Domains) == 0
 }
@@ -102,8 +97,8 @@ loop:
 	}
 }
 
-func parseFlags() (c clicfg) {
-	flag.StringVar(&c.path, "cfg", "", "Path to the configuration file")
+func parseFlags() (cpath string, c config) {
+	flag.StringVar(&cpath, "cfg", "", "Path to the configuration file")
 	flag.StringVar(&c.Port, "port", "", "The port that onering will listen to")
 	flag.StringVar(&c.TLSPort, "tlsport", "", "The TLS port that onering will listen to")
 	flag.StringVar(&c.Cert, "cert", "", "Path to the TLS certificate")
@@ -114,10 +109,10 @@ func parseFlags() (c clicfg) {
 }
 
 func getConfig(path string) (c config) {
-	cli := parseFlags()
+	cpath, fcfg := parseFlags()
 
-	if cli.path != "" {
-		path = cli.path
+	if cpath != "" {
+		path = cpath
 	}
 
 	_, err := toml.DecodeFile(path, &c)
@@ -125,7 +120,7 @@ func getConfig(path string) (c config) {
 		log.Println("getConfig", "toml.DecodeFile", err)
 	}
 
-	c.override(cli.config)
+	c.override(fcfg)
 	if c.isZero() {
 		log.Fatal("error: no configuration provided")
 	}
