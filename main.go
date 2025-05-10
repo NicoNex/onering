@@ -1,13 +1,11 @@
 package main
 
 import (
-	"flag"
-	"fmt"
+	"errors"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -16,6 +14,7 @@ import (
 )
 
 type config struct {
+	path    string
 	Port    string            `toml:"port"`
 	TLSPort string            `toml:"tls_port"`
 	Cert    string            `toml:"cert"`
@@ -23,48 +22,32 @@ type config struct {
 	Domains map[string]string `toml:"domains"`
 }
 
-func (c config) isZero() bool {
-	return c.Port == "" && c.TLSPort == "" && c.Cert == "" && c.Key == "" && len(c.Domains) == 0
+type rproxy map[string]*url.URL
+
+func newRProxy(domains map[string]string) (rp rproxy, err error) {
+	rp = make(rproxy)
+
+	for origin, target := range domains {
+		u, e := url.Parse(target)
+		if e != nil {
+			errors.Join(err, e)
+			continue
+		}
+		rp[origin] = u
+	}
+	return
 }
 
-func (c *config) override(n config) {
-	if n.Port != "" {
-		c.Port = n.Port
-	}
-	if n.TLSPort != "" {
-		c.TLSPort = n.TLSPort
-	}
-	if n.Cert != "" {
-		c.Cert = n.Cert
-	}
-	if n.Key != "" {
-		c.Cert = n.Cert
-	}
-	if n.Domains != nil {
-		c.Domains = n.Domains
-	}
-}
-
-var cfg config
-
-func redirect(w http.ResponseWriter, r *http.Request) {
-	target, ok := cfg.Domains[r.Host]
+func (rp rproxy) redirect(w http.ResponseWriter, r *http.Request) {
+	origin, ok := rp[r.Host]
 	if !ok {
-		fmt.Fprintf(w, "error: not found")
+		http.NotFound(w, r)
 		return
 	}
-
-	origin, err := url.Parse(target)
-	if err != nil {
-		fmt.Fprintf(w, "error: failed to parse url")
-		return
-	}
-
-	proxy := httputil.NewSingleHostReverseProxy(origin)
-	proxy.ServeHTTP(w, r)
+	httputil.NewSingleHostReverseProxy(origin).ServeHTTP(w, r)
 }
 
-func watch(path string, cfgptr *config) {
+func watch(path string, rp *rproxy) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal("watch", "fsnotify.NewWatcher", err)
@@ -83,9 +66,16 @@ loop:
 				continue loop
 			}
 			if event.Has(fsnotify.Write) && event.Name == path {
-				if _, err := toml.DecodeFile(path, cfgptr); err != nil {
+				var cfg config
+				if _, err := toml.DecodeFile(path, &cfg); err != nil {
 					log.Println("watch", "toml.DecodeFile", err)
 				}
+
+				newrp, err := newRProxy(cfg.Domains)
+				if err != nil {
+					log.Println("watch", "newRProxy", err)
+				}
+				*rp = newrp
 			}
 
 		case err, ok := <-watcher.Errors:
@@ -97,36 +87,6 @@ loop:
 	}
 }
 
-func parseFlags() (cpath string, c config) {
-	flag.StringVar(&cpath, "cfg", "", "Path to the configuration file")
-	flag.StringVar(&c.Port, "port", "", "The port that onering will listen to")
-	flag.StringVar(&c.TLSPort, "tlsport", "", "The TLS port that onering will listen to")
-	flag.StringVar(&c.Cert, "cert", "", "Path to the TLS certificate")
-	flag.StringVar(&c.Key, "key", "", "Path to the TLS key")
-	flag.Parse()
-
-	return
-}
-
-func getConfig(path string) (c config) {
-	cpath, fcfg := parseFlags()
-
-	if cpath != "" {
-		path = cpath
-	}
-
-	_, err := toml.DecodeFile(path, &c)
-	if err != nil {
-		log.Println("getConfig", "toml.DecodeFile", err)
-	}
-
-	c.override(fcfg)
-	if c.isZero() {
-		log.Fatal("error: no configuration provided")
-	}
-	return
-}
-
 func retry(d time.Duration, fn func()) {
 	for {
 		fn()
@@ -135,16 +95,19 @@ func retry(d time.Duration, fn func()) {
 }
 
 func main() {
-	ucfg, err := os.UserConfigDir()
+	cfg, err := configurations()
 	if err != nil {
-		log.Fatal("main", "os.UserConfigDir", err)
+		log.Println("main", "configurations", err)
 	}
 
-	cfgpath := filepath.Join(ucfg, "onering.toml")
-	cfg = getConfig(cfgpath)
-	go watch(cfgpath, &cfg)
+	rp, err := newRProxy(cfg.Domains)
+	if err != nil {
+		log.Println("main", "newRproxy", err)
+	}
 
-	http.HandleFunc("/", redirect)
+	go watch(cfg.path, &rp)
+	http.HandleFunc("/", rp.redirect)
+
 	go retry(time.Second*5, func() {
 		log.Println(http.ListenAndServe(cfg.Port, nil))
 	})
