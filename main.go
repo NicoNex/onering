@@ -109,9 +109,17 @@ func main() {
 	http.HandleFunc("/", rp.redirect)
 
 	go retry(time.Second*5, func() {
-		log.Println(http.ListenAndServe(cfg.Port, nil))
+		log.Println(
+			"main",
+			"http.ListenAndServe",
+			http.ListenAndServe(cfg.Port, nil),
+		)
 	})
 	retry(time.Second*5, func() {
-		log.Println(http.ListenAndServeTLS(cfg.TLSPort, cfg.Cert, cfg.Key, nil))
+		log.Println(
+			"main",
+			"http.ListenAndServeTLS",
+			http.ListenAndServeTLS(cfg.TLSPort, cfg.Cert, cfg.Key, nil),
+		)
 	})
 }

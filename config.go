@@ -39,8 +39,8 @@ func parseFlags(cfg *config) error {
 
 	fs.StringVar(&cfg.Port, "port", cfg.Port, "The port that onering will listen to")
 	fs.StringVar(&cfg.TLSPort, "tlsport", cfg.TLSPort, "The TLS port that onering will listen to")
-	fs.StringVar(&cfg.Cert, "cert", "", "Path to the TLS certificate")
-	fs.StringVar(&cfg.Key, "key", "", "Path to the TLS key")
+	fs.StringVar(&cfg.Cert, "cert", cfg.Cert, "Path to the TLS certificate")
+	fs.StringVar(&cfg.Key, "key", cfg.Key, "Path to the TLS key")
 
 	if err := fs.Parse(clean); err != nil {
 		return err
