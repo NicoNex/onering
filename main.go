@@ -38,8 +38,8 @@ func newRProxy(domains map[string]string) (rp rproxy, err error) {
 	return
 }
 
-func (rp rproxy) redirect(w http.ResponseWriter, r *http.Request) {
-	origin, ok := rp[r.Host]
+func (rp *rproxy) redirect(w http.ResponseWriter, r *http.Request) {
+	origin, ok := (*rp)[r.Host]
 	if !ok {
 		http.NotFound(w, r)
 		return
