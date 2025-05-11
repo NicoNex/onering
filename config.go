@@ -10,6 +10,15 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+type config struct {
+	path    string
+	Port    string            `toml:"port"`
+	TLSPort string            `toml:"tls_port"`
+	Cert    string            `toml:"cert"`
+	Key     string            `toml:"key"`
+	Domains map[string]string `toml:"domains"`
+}
+
 func parseFlags(cfg *config) error {
 	raw := flag.Args()
 	clean := make([]string, 0, len(raw))

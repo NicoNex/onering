@@ -13,15 +13,6 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-type config struct {
-	path    string
-	Port    string            `toml:"port"`
-	TLSPort string            `toml:"tls_port"`
-	Cert    string            `toml:"cert"`
-	Key     string            `toml:"key"`
-	Domains map[string]string `toml:"domains"`
-}
-
 type rproxy map[string]*url.URL
 
 func newRProxy(domains map[string]string) (rp rproxy, err error) {
